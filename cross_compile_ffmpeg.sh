@@ -101,6 +101,9 @@ check_missing_packages () {
           apt_pkgs="$apt_pkgs python-is-python3" # needed
         fi
         echo "$ sudo apt-get install $apt_pkgs -y"
+        if uname -a | grep  -q -- "-microsoft" ; then
+         echo NB if you use WSL Ubuntu 20.04 you need to do an extra step: https://github.com/rdp/ffmpeg-windows-build-helpers/issues/452
+	fi
         ;;
       debian)
         echo "for debian:"
@@ -215,6 +218,7 @@ check_missing_packages () {
       Please update via windows update then try again"
       exit 1
     fi
+    echo "for WSL ubuntu 20.04 you need to do an extra step https://github.com/rdp/ffmpeg-windows-build-helpers/issues/452"
   fi
 
 }
@@ -841,7 +845,7 @@ build_amd_amf_headers() {
 }
 
 build_nv_headers() {
-  do_git_checkout https://git.videolan.org/git/ffmpeg/nv-codec-headers.git
+  do_git_checkout https://github.com/FFmpeg/nv-codec-headers.git
   cd nv-codec-headers_git
     do_make_install "PREFIX=$mingw_w64_x86_64_prefix" # just copies in headers
   cd ..
@@ -2313,6 +2317,10 @@ build_ffmpeg() {
     postpend_configure_opts="--enable-static --disable-shared --prefix=${install_prefix}"
   fi
 
+  if [[ $ffmpeg_git_checkout_version == *"n4.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.3"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.2"* ]]; then
+    postpend_configure_opts="${postpend_configure_opts} --disable-libdav1d " # dav1d has diverged since
+  fi
+
   cd $output_dir
     apply_patch file://$patch_dir/frei0r_load-shared-libraries-dynamically.diff
     if [ "$bits_target" != "32" ]; then
@@ -2328,7 +2336,6 @@ build_ffmpeg() {
       elif [[ $ffmpeg_git_checkout_version == *"n4.4"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.3"* ]] || [[ $ffmpeg_git_checkout_version == *"n4.2"* ]]; then
         git apply "$work_dir/SVT-HEVC_git/ffmpeg_plugin/n4.4-0001-lavc-svt_hevc-add-libsvt-hevc-encoder-wrapper.patch"
         git apply "$patch_dir/SVT-HEVC-0002-doc-Add-libsvt_hevc-encoder-docs.patch"  # upstream patch does not apply on current ffmpeg master
-        postpend_configure_opts="${postpend_configure_opts} --disable-libdav1d " # dav1d has diverged since
       else
         # PUT PATCHES FOR OTHER VERSIONS HERE
         :
