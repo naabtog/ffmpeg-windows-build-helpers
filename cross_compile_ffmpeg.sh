@@ -1639,7 +1639,6 @@ build_libmysofa() {
       cmake_params+=" -DCODE_COVERAGE=0"
     fi
     do_cmake "$cmake_params"
-    apply_patch file://$patch_dir/libmysofa.patch -p1 # maybe unneeded now that double cmake no longer...hmm...
     do_make_and_make_install
   cd ..
 }
@@ -2458,12 +2457,12 @@ build_ffmpeg() {
 
     # XXX really ffmpeg should have set this up right but doesn't, patch FFmpeg itself instead...
     if [[ $1 == "static" ]]; then
+     # nb we can just modify this every time, it getes recreated, above..
       if [[ $build_intel_qsv = y  && $compiler_flavors != "native" ]]; then # Broken for native builds right now: https://github.com/lu-zero/mfx_dispatch/issues/71
-        sed -i.bak 's/-lavutil -lm.*/-lavutil -lm -lmfx -lstdc++ -lpthread/' "$PKG_CONFIG_PATH/libavutil.pc"
+        sed -i.bak 's/-lavutil -pthread -lm /-lavutil -pthread -lm -lmfx -lstdc++ -lmpg123 -lshlwapi /' "$PKG_CONFIG_PATH/libavutil.pc"
       else
-        sed -i.bak 's/-lavutil -lm.*/-lavutil -lm -lpthread/' "$PKG_CONFIG_PATH/libavutil.pc"
+        sed -i.bak 's/-lavutil -pthread -lm /-lavutil -pthread -lm -lmpg123 -lshlwapi /' "$PKG_CONFIG_PATH/libavutil.pc"
       fi
-      sed -i.bak 's/-lswresample -lm.*/-lswresample -lm -lsoxr/' "$PKG_CONFIG_PATH/libswresample.pc" # XXX patch ffmpeg
     fi
 
     sed -i.bak 's/-lswresample -lm.*/-lswresample -lm -lsoxr/' "$PKG_CONFIG_PATH/libswresample.pc" # XXX patch ffmpeg
@@ -2510,8 +2509,8 @@ build_ffmpeg() {
 }
 
 build_lsw() {
-   # Build L-Smash-Works, which are plugins based on lsmash
-   #build_ffmpeg static # dependency, assume already built
+   # Build L-Smash-Works, which are AviSynth plugins based on lsmash/ffmpeg
+   #build_ffmpeg static # dependency, assume already built since it builds before this does...
    build_lsmash # dependency
    do_git_checkout https://github.com/VFR-maniac/L-SMASH-Works.git lsw
    cd lsw/VapourSynth
@@ -2743,7 +2742,7 @@ enable_gpl=y
 build_x264_with_libav=n # To build x264 with Libavformat.
 ffmpeg_git_checkout="https://github.com/FFmpeg/FFmpeg.git"
 ffmpeg_source_dir=
-build_svt=y
+build_svt=n
 
 # parse command line parameters, if any
 while true; do
