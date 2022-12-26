@@ -918,7 +918,7 @@ build_glib() {
 }
 
 build_lensfun() {
-  #build_glib # not 19.10 friendly
+  build_glib
   do_git_checkout https://github.com/lensfun/lensfun.git lensfun_git
   cd lensfun_git
     export CMAKE_STATIC_LINKER_FLAGS='-lws2_32 -pthread'
@@ -1161,7 +1161,7 @@ build_gnutls() {
     # --disable-guile is so that if it finds guile installed (cygwin did/does) it won't try and link/build to it and fail...
     # libtasn1 is some dependency, appears provided is an option [see also build_libnettle]
     # pks #11 hopefully we don't need kit
-    apply_patch file://$patch_dir/gnutls-windows8.patch -p1 # bug requiring windows 8?
+    apply_patch file://$patch_dir/gnutls-windows8.patch -p1 # defaults to win 8 kind of, either this or setWINNT_VER :|
     generic_configure "--disable-doc --disable-tools --disable-cxx --disable-tests --disable-gtk-doc-html --disable-libdane --disable-nls --enable-local-libopts --disable-guile --with-included-libtasn1 --without-p11-kit"
     do_make_and_make_install
     if [[ $compiler_flavors != "native"  ]]; then
@@ -2042,7 +2042,11 @@ build_lua() {
 }
 
 build_libcurl() {
-  generic_download_and_make_and_install https://curl.haxx.se/download/curl-7.46.0.tar.gz
+  download_and_unpack_file https://curl.haxx.se/download/curl-7.86.0.tar.gz
+  cd curl-7.86.0
+    generic_configure "--without-ssl" # XXX use --with-gnutls but it needed pkg-config or some odd?
+    do_make_and_make_install
+  cd ..
 }
 
 build_libhdhomerun() {
@@ -2354,7 +2358,7 @@ build_ffmpeg() {
       init_options+=" --disable-schannel"
       # Fix WinXP incompatibility by disabling Microsoft's Secure Channel, because Windows XP doesn't support TLS 1.1 and 1.2, but with GnuTLS or OpenSSL it does.  XP compat!
     fi
-    config_options="$init_options --enable-libcaca --enable-gray --enable-libtesseract --enable-fontconfig --enable-gmp --enable-libass --enable-libbluray --enable-libbs2b --enable-libflite --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libilbc --enable-libmodplug --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libwebp --enable-libzimg --enable-libzvbi --enable-libmysofa --enable-libopenjpeg  --enable-libopenh264  --enable-libvmaf --enable-libsrt --enable-libxml2 --enable-opengl --enable-libdav1d --enable-cuda-llvm"
+    config_options="$init_options --enable-libcaca --enable-gray --enable-libtesseract --enable-fontconfig --enable-gmp --enable-libass --enable-libbluray --enable-libbs2b --enable-libflite --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libilbc --enable-libmodplug --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libwebp --enable-libzimg --enable-libzvbi --enable-libmysofa --enable-libopenjpeg  --enable-libopenh264  --enable-libvmaf --enable-libsrt --enable-libxml2 --enable-opengl --enable-libdav1d --enable-cuda-llvm  --enable-gnutls"
 
     if [[ $build_svt = y ]]; then
       if [ "$bits_target" != "32" ]; then
@@ -2644,7 +2648,7 @@ build_ffmpeg_dependencies() {
   build_libtesseract
   build_lensfun  # requires png, zlib, iconv
   # build_libtensorflow # broken
-  # build_libvpx # no likey old gcc?
+  build_libvpx
   build_libx265
   build_libopenh264
   build_libaom
@@ -2803,7 +2807,7 @@ while true; do
     --build-dvbtee=* ) build_dvbtee="${1#*=}"; shift ;;
     --disable-nonfree=* ) disable_nonfree="${1#*=}"; shift ;;
     # this doesn't actually "build all", like doesn't build 10 high-bit LGPL ffmpeg, but it does exercise the "non default" type build options...
-    -a         ) compiler_flavors="multi"; build_mplayer=n; build_libmxf=y; build_mp4box=y; build_vlc=y; build_lsw=y;
+    -a         ) compiler_flavors="multi"; build_mplayer=n; build_libmxf=y; build_mp4box=n; build_vlc=y; build_lsw=y;
                  build_ffmpeg_static=y; build_ffmpeg_shared=y; build_lws=y; disable_nonfree=n; git_get_latest=y;
                  sandbox_ok=y; build_amd_amf=y; build_intel_qsv=y; build_dvbtee=y; build_x264_with_libav=y; shift ;;
     --build-svt=* ) build_svt="${1#*=}"; shift ;;
