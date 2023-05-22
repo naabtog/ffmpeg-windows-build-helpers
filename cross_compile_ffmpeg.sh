@@ -919,7 +919,7 @@ build_glib() {
 
 build_lensfun() {
   build_glib
-  do_git_checkout https://github.com/lensfun/lensfun.git lensfun_git
+  do_git_checkout https://github.com/lensfun/lensfun.git lensfun_git v0.3.3
   cd lensfun_git
     export CMAKE_STATIC_LINKER_FLAGS='-lws2_32 -pthread'
     do_cmake "-DBUILD_STATIC=on -DCMAKE_INSTALL_DATAROOTDIR=$mingw_w64_x86_64_prefix"
@@ -1717,6 +1717,16 @@ build_libaribb24() {
   cd ..
 }
 
+build_libaribcaption() {
+  do_git_checkout https://github.com/xqq/libaribcaption
+  cd libaribcaption
+  mkdir build
+  cd build
+  do_cmake_from_build_dir .. "-DCMAKE_BUILD_TYPE=Release"
+  do_make_and_make_install
+  cd ../..
+}
+
 build_libxavs() {
   do_svn_checkout https://svn.code.sf.net/p/xavs/code/trunk xavs_svn
   cd xavs_svn
@@ -1821,7 +1831,7 @@ build_avisynth() {
 }
 
 build_libx265() {
-  local checkout_dir=x265_all_bitdepth
+  local checkout_dir=x265
   local remote="https://bitbucket.org/multicoreware/x265_git"
   if [[ ! -z $x265_git_checkout_version ]]; then
     checkout_dir+="_$x265_git_checkout_version"
@@ -1840,7 +1850,7 @@ build_libx265() {
   local cmake_params="-DENABLE_SHARED=0" # build x265.exe
 
   if [ "$bits_target" = "32" ]; then
-    cmake_params+=" -DWINXP_SUPPORT=1" # enable windows xp/vista compatibility in x86 build
+    cmake_params+=" -DWINXP_SUPPORT=1" # enable windows xp/vista compatibility in x86 build, since it still can I think...
   fi
   mkdir -p 8bit 10bit 12bit
 
@@ -1887,7 +1897,7 @@ SAVE
 END
 EOF
   fi
-  make install # force reinstall in case changed stable -> unstable
+  make install # force reinstall in case you just switched from stable to not :|
   cd ../..
 }
 
@@ -1921,7 +1931,6 @@ build_libx264() {
   fi
 
   local x264_profile_guided=n # or y -- haven't gotten this proven yet...TODO
-  checkout_dir="${checkout_dir}_all_bitdepth"
 
   if [[ $prefer_stable = "n" ]]; then
     checkout_dir="${checkout_dir}_unstable"
@@ -2361,12 +2370,8 @@ build_ffmpeg() {
     fi
     config_options="$init_options --enable-libcaca --enable-gray --enable-libtesseract --enable-fontconfig --enable-gmp --enable-libass --enable-libbluray --enable-libbs2b --enable-libflite --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libilbc --enable-libmodplug --enable-libmp3lame --enable-libopencore-amrnb --enable-libopencore-amrwb --enable-libopus --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libvorbis --enable-libwebp --enable-libzimg --enable-libzvbi --enable-libmysofa --enable-libopenjpeg  --enable-libopenh264  --enable-libvmaf --enable-libsrt --enable-libxml2 --enable-opengl --enable-libdav1d --enable-cuda-llvm  --enable-gnutls"
 
-    if [[ $build_svt = y ]]; then
-      if [ "$bits_target" != "32" ]; then
-
-        # SVT-VP9 see comments below
-        # git apply "$work_dir/SVT-VP9_git/ffmpeg_plugin/master-0001-Add-ability-for-ffmpeg-to-run-svt-vp9.patch"
-
+    if [[ "$bits_target" != "32" ]]; then
+      if [[ $build_svt_hevc = y ]]; then
         # SVT-HEVC
         # Apply the correct patches based on version. Logic (n4.4 patch for n4.2, n4.3 and n4.4)  based on patch notes here:
         # https://github.com/OpenVisualCloud/SVT-HEVC/commit/b5587b09f44bcae70676f14d3bc482e27f07b773#diff-2b35e92117ba43f8397c2036658784ba2059df128c9b8a2625d42bc527dffea1
@@ -2380,11 +2385,13 @@ build_ffmpeg() {
           git apply "$work_dir/SVT-HEVC_git/ffmpeg_plugin/master-0001-lavc-svt_hevc-add-libsvt-hevc-encoder-wrapper.patch"
         fi
         config_options+=" --enable-libsvthevc"
-        config_options+=" --enable-libsvtav1"
-        # config_options+=" --enable-libsvtvp9" #not currently working but compiles if configured
-        config_options+=" --enable-libvpx"
-      fi # else doesn't work/matter with 32 bit
-    fi
+      fi
+      config_options+=" --enable-libsvtav1"
+      # SVT-VP9 see comments below
+      # git apply "$work_dir/SVT-VP9_git/ffmpeg_plugin/master-0001-Add-ability-for-ffmpeg-to-run-svt-vp9.patch"
+      # config_options+=" --enable-libsvtvp9" # not currently working but compiles if configured
+    fi # else doesn't work/matter with 32 bit
+    config_options+=" --enable-libvpx"
     config_options+=" --enable-libaom"
 
     if [[ $compiler_flavors != "native" ]]; then
@@ -2412,6 +2419,7 @@ build_ffmpeg() {
     else
       config_options+=" --disable-libmfx"
     fi
+    config_options+=" --enable-libaribcaption" # libaribcatption (MIT licensed)
     if [[ $enable_gpl == 'y' ]]; then
       config_options+=" --enable-gpl --enable-frei0r --enable-librubberband --enable-libvidstab --enable-libx264 --enable-libx265 --enable-avisynth --enable-libaribb24"
       config_options+=" --enable-libxvid --enable-libdavs2"
@@ -2502,15 +2510,17 @@ build_ffmpeg() {
           cd ..
         fi
       else
-        echo "Done! You will find $bits_target-bit $1 binaries in $(pwd)"
+        echo "Done! You will find $bits_target-bit $1 binaries in $(pwd)" `date`
         if [[ ! -f $archive.7z ]]; then
           sed "s/$/\r/" COPYING.GPLv3 > COPYING.GPLv3.txt
+          echo "creating distro zip..." # XXX opt in?
           7z a -mx=9 $archive.7z ffmpeg.exe ffplay.exe ffprobe.exe COPYING.GPLv3.txt && rm -f COPYING.GPLv3.txt
+        else
+          echo "not creating distro zip as one already exists..."
         fi
       fi
-      echo "You will find redistributable archive .7z file in $cur_dir/redist"
+      echo "You will find redistributable archive .7z file in $archive.7z"
     fi
-    echo `date`
 
   if [[ -z $ffmpeg_source_dir ]]; then
     cd ..
@@ -2628,10 +2638,12 @@ build_ffmpeg_dependencies() {
   build_libsamplerate # Needs libsndfile >= 1.0.6 and fftw >= 0.15.0 for tests. Uses dlfcn.
   build_librubberband # Needs libsamplerate, libsndfile, fftw and vamp_plugin. 'configure' will fail otherwise. Eventhough librubberband doesn't necessarily need them (libsndfile only for 'rubberband.exe' and vamp_plugin only for "Vamp audio analysis plugin"). How to use the bundled libraries '-DUSE_SPEEX' and '-DUSE_KISSFFT'?
   build_frei0r # Needs dlfcn. could use opencv...
-  if [[ "$bits_target" != "32" && $build_svt = "y" ]]; then
-    build_svt-hevc
+  if [[ "$bits_target" != "32" ]]; then
+    if [[ $build_svt_hevc = y ]]; then
+      build_svt-hevc
+    fi
     build_svt-av1
-    build_svt-vp9
+    #build_svt-vp9 # not currently working but compiles if configured
   fi
   build_vidstab
   #build_facebooktransform360 # needs modified ffmpeg to use it so not typically useful
@@ -2648,6 +2660,7 @@ build_ffmpeg_dependencies() {
 
   build_libxvid # FFmpeg now has native support, but libxvid still provides a better image.
   build_libsrt # requires gnutls, mingw-std-threads
+  build_libaribcaption
   build_libaribb24
   build_libtesseract
   build_lensfun  # requires png, zlib, iconv
@@ -2753,7 +2766,7 @@ enable_gpl=y
 build_x264_with_libav=n # To build x264 with Libavformat.
 ffmpeg_git_checkout="https://github.com/FFmpeg/FFmpeg.git"
 ffmpeg_source_dir=
-build_svt=n
+build_svt_hevc=n
 
 # parse command line parameters, if any
 while true; do
@@ -2778,7 +2791,7 @@ while true; do
       --build-lsw=n [builds L-Smash Works VapourSynth and AviUtl plugins]
       --build-ismindex=n [builds ffmpeg utility ismindex.exe]
       -a 'build all' builds ffmpeg, mplayer, vlc, etc. with all fixings turned on [many disabled from disuse these days]
-      --build-svt=n [builds libsvt-hevc modules within ffmpeg etc.]
+      --build-svt-hevc=n [builds libsvt-hevc modules within ffmpeg etc.]
       --build-dvbtee=n [build dvbtee.exe a DVB profiler]
       --compiler-flavors=[multi,win32,win64,native] [default prompt, or skip if you already have one built, multi is both win32 and win64]
       --cflags=[default is $original_cflags, which works on any cpu, see README for options]
@@ -2814,7 +2827,7 @@ while true; do
     -a         ) compiler_flavors="multi"; build_mplayer=n; build_libmxf=y; build_mp4box=n; build_vlc=y; build_lsw=y;
                  build_ffmpeg_static=y; build_ffmpeg_shared=y; build_lws=y; disable_nonfree=n; git_get_latest=y;
                  sandbox_ok=y; build_amd_amf=y; build_intel_qsv=y; build_dvbtee=y; build_x264_with_libav=y; shift ;;
-    --build-svt=* ) build_svt="${1#*=}"; shift ;;
+    --build-svt-hevc=* ) build_svt_hevc="${1#*=}"; shift ;;
     -d         ) gcc_cpu_count=$cpu_count; disable_nonfree="y"; sandbox_ok="y"; compiler_flavors="win64"; git_get_latest="n"; shift ;;
     --compiler-flavors=* )
          compiler_flavors="${1#*=}";
